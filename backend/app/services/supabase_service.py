@@ -69,3 +69,18 @@ class SupabaseService:
         response.raise_for_status()
         data = response.json()
         return data[0] if isinstance(data, list) and data else {}
+
+    def upsert(self, table: str, payload: dict[str, Any], *, on_conflict: str | None = None) -> dict[str, Any]:
+        endpoint = self._endpoint(table)
+        if on_conflict:
+            endpoint = f"{endpoint}?{urlencode({'on_conflict': on_conflict})}"
+
+        response = requests.post(
+            endpoint,
+            headers={**self._headers(), "Prefer": "resolution=merge-duplicates,return=representation"},
+            json=payload,
+            timeout=20,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data[0] if isinstance(data, list) and data else {}

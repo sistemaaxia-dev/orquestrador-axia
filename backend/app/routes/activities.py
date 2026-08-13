@@ -67,6 +67,71 @@ def activity_decision(activity_id: str):
         },
     )
 
+    workflow_activities = supabase.select(
+        "activities",
+        filters={"workflow_id": f"eq.{current['workflow_id']}"},
+        order="order_index.asc",
+    )
+
+    if action in {"Feito", "Aprovado"}:
+        next_activity = next(
+            (
+                item
+                for item in workflow_activities
+                if item["order_index"] > current["order_index"] and item["status"] == "Bloqueada"
+            ),
+            None,
+        )
+        if next_activity:
+            supabase.update(
+                "activities",
+                {"id": f"eq.{next_activity['id']}"},
+                {"status": "Liberada"},
+            )
+            supabase.insert(
+                "activity_history",
+                {
+                    "workflow_id": current["workflow_id"],
+                    "activity_id": next_activity["id"],
+                    "activity_name": next_activity["name"],
+                    "action": "Liberada",
+                    "notes": "Proxima atividade liberada automaticamente.",
+                    "performed_by": user.id,
+                    "performed_by_email": user.email,
+                    "old_status": "Bloqueada",
+                    "new_status": "Liberada",
+                },
+            )
+    else:
+        previous_activity = next(
+            (
+                item
+                for item in reversed(workflow_activities)
+                if item["order_index"] < current["order_index"]
+            ),
+            None,
+        )
+        if previous_activity:
+            supabase.update(
+                "activities",
+                {"id": f"eq.{previous_activity['id']}"},
+                {"status": "Liberada"},
+            )
+            supabase.insert(
+                "activity_history",
+                {
+                    "workflow_id": current["workflow_id"],
+                    "activity_id": previous_activity["id"],
+                    "activity_name": previous_activity["name"],
+                    "action": "Retorno",
+                    "notes": "Atividade anterior reaberta por reprovacao/nao feito.",
+                    "performed_by": user.id,
+                    "performed_by_email": user.email,
+                    "old_status": previous_activity["status"],
+                    "new_status": "Liberada",
+                },
+            )
+
     return jsonify(updated)
 
 

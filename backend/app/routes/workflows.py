@@ -23,6 +23,55 @@ def list_workflows():
     return jsonify(rows)
 
 
+@workflows_bp.patch("/workflows/<workflow_id>/activities/reorder")
+def reorder_workflow_activities(workflow_id: str):
+    try:
+        user = get_current_user()
+    except AuthError as error:
+        return jsonify({"error": str(error)}), 401
+
+    payload = request.get_json(silent=True) or {}
+    ordered_ids = payload.get("ordered_ids") or []
+    if not isinstance(ordered_ids, list) or not ordered_ids:
+        return jsonify({"error": "Lista ordenada de atividades nao informada."}), 400
+
+    supabase = SupabaseService()
+    rows = supabase.select(
+        "activities",
+        filters={"workflow_id": f"eq.{workflow_id}"},
+        order="order_index.asc",
+    )
+    index_by_id = {row["id"]: row for row in rows}
+
+    for order_index, activity_id in enumerate(ordered_ids, start=1):
+        if activity_id not in index_by_id:
+            continue
+        supabase.update(
+            "activities",
+            {"id": f"eq.{activity_id}"},
+            {"order_index": order_index},
+        )
+
+    supabase.insert(
+        "activity_history",
+        {
+            "workflow_id": workflow_id,
+            "activity_name": "Workflow",
+            "action": "Reordenacao",
+            "notes": "Ordem das atividades ajustada manualmente.",
+            "performed_by": user.id,
+            "performed_by_email": user.email,
+        },
+    )
+
+    refreshed = supabase.select(
+        "activities",
+        filters={"workflow_id": f"eq.{workflow_id}"},
+        order="order_index.asc",
+    )
+    return jsonify(refreshed)
+
+
 @workflows_bp.post("/workflows")
 def create_workflow():
     try:

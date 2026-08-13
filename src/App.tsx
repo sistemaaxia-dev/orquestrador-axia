@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
+import { api } from './lib/api'
 import './App.css'
 
 type ViewKey = 'home' | 'activities' | 'history' | 'users'
@@ -10,19 +11,25 @@ type ActivityType = 'Execucao' | 'Validacao' | 'Aprovacao' | 'Liberacao' | 'Envi
 type ActivityActionMode = 'none' | 'readonly' | 'approval' | 'execution'
 type StatusFilter = 'Pendentes' | 'Concluidas' | 'Todas'
 
-type Workflow = {
-  id: number
+type WorkflowCard = {
+  id: string
   nome: string
   rotina: 'Mensal' | 'Trimestral'
   periodo: string
   descricao: string
   dataInicio: string
   prazo: string
+  status: WorkflowStatus
+  concluidas: number
+  liberadas: number
+  total: number
+  etapaAtual: string
+  responsavelAtual: string
 }
 
 type Activity = {
-  id: number
-  workflowId: number
+  id: string
+  workflowId: string
   workflowNome: string
   ordem: number
   empresa: string
@@ -45,8 +52,8 @@ type Activity = {
 }
 
 type HistoryItem = {
-  id: number
-  workflowId: number
+  id: string
+  workflowId: string
   workflowNome: string
   atividade: string
   acao: string
@@ -55,7 +62,7 @@ type HistoryItem = {
 }
 
 type UserRole = {
-  id: number
+  id: string
   area: string
   perfil: string
   titular: string
@@ -65,199 +72,14 @@ type UserRole = {
   ativo: boolean
 }
 
-const currentUser = 'Aline Valle'
-
-const workflowSeed: Workflow[] = [
-  {
-    id: 1,
-    nome: 'Fechamento Agosto',
-    rotina: 'Mensal',
-    periodo: '08/2026',
-    descricao: 'Fechamento mensal com recebimento, apuracao e consolidacao.',
-    dataInicio: '2026-08-20T08:00',
-    prazo: '2026-08-29T18:00',
-  },
-  {
-    id: 2,
-    nome: 'Fechamento Setembro',
-    rotina: 'Mensal',
-    periodo: '09/2026',
-    descricao: 'Workflow aguardando carga operacional das empresas.',
-    dataInicio: '2026-09-01T08:30',
-    prazo: '2026-09-30T18:00',
-  },
-  {
-    id: 3,
-    nome: 'Fechamento 3T',
-    rotina: 'Trimestral',
-    periodo: '3T/2026',
-    descricao: 'Rotina trimestral com consolidacao e frente de RI.',
-    dataInicio: '2026-09-15T09:00',
-    prazo: '2026-09-28T17:00',
-  },
-]
-
-const activitySeed: Activity[] = [
-  {
-    id: 101,
-    workflowId: 1,
-    workflowNome: 'Fechamento Agosto',
-    ordem: 1,
-    empresa: 'Holding',
-    nome: 'Relatorio de Contingencia',
-    etapa: 'Recebimento',
-    tipo: 'Envio',
-    prazo: '2026-08-21T11:00',
-    responsavel: currentUser,
-    revisor: 'Leandra Nunes',
-    exigeAprovacao: false,
-    exigeAnexo: true,
-    status: 'Liberada',
-    resultado: '',
-    dataLiberacao: '2026-08-20T08:00',
-  },
-  {
-    id: 102,
-    workflowId: 1,
-    workflowNome: 'Fechamento Agosto',
-    ordem: 2,
-    empresa: 'Holding',
-    nome: 'Envio relatorio de depositos',
-    etapa: 'Recebimento',
-    tipo: 'Envio',
-    prazo: '2026-08-21T13:00',
-    responsavel: currentUser,
-    revisor: 'Leandra Nunes',
-    exigeAprovacao: false,
-    exigeAnexo: true,
-    status: 'Bloqueada',
-    resultado: '',
-  },
-  {
-    id: 103,
-    workflowId: 1,
-    workflowNome: 'Fechamento Agosto',
-    ordem: 3,
-    empresa: 'Holding',
-    nome: 'Fechamento etapa recebimento',
-    etapa: 'Recebimento',
-    tipo: 'Validacao',
-    prazo: '2026-08-21T16:00',
-    responsavel: 'Leandra Nunes',
-    aprovador: 'Leandra Nunes',
-    exigeAprovacao: true,
-    exigeAnexo: false,
-    status: 'Bloqueada',
-    resultado: '',
-  },
-  {
-    id: 104,
-    workflowId: 1,
-    workflowNome: 'Fechamento Agosto',
-    ordem: 4,
-    empresa: 'Holding',
-    nome: 'Inicio etapa contabilizacao e conciliacao',
-    etapa: 'Contabilizacao',
-    tipo: 'Execucao',
-    prazo: '2026-08-22T09:00',
-    responsavel: 'Carlos Contador',
-    revisor: currentUser,
-    exigeAprovacao: false,
-    exigeAnexo: false,
-    status: 'Bloqueada',
-    resultado: '',
-  },
-  {
-    id: 105,
-    workflowId: 1,
-    workflowNome: 'Fechamento Agosto',
-    ordem: 5,
-    empresa: 'Holding',
-    nome: 'Contador valida os dados',
-    etapa: 'Contabilizacao',
-    tipo: 'Validacao',
-    prazo: '2026-08-22T11:00',
-    responsavel: 'Carlos Contador',
-    aprovador: currentUser,
-    exigeAprovacao: true,
-    exigeAnexo: false,
-    status: 'Bloqueada',
-    resultado: '',
-  },
-  {
-    id: 201,
-    workflowId: 3,
-    workflowNome: 'Fechamento 3T',
-    ordem: 1,
-    empresa: 'Controladora',
-    nome: 'Rodar BD e sincronizar para Workiva',
-    etapa: 'Consolidacao',
-    tipo: 'Execucao',
-    prazo: '2026-09-25T18:00',
-    responsavel: currentUser,
-    revisor: 'Controladoria',
-    exigeAprovacao: false,
-    exigeAnexo: true,
-    status: 'Liberada',
-    resultado: '',
-    dataLiberacao: '2026-09-15T09:00',
-  },
-]
-
-const historySeed: HistoryItem[] = [
-  {
-    id: 1,
-    workflowId: 1,
-    workflowNome: 'Fechamento Agosto',
-    atividade: 'Workflow',
-    acao: 'Criado',
-    dataHora: '2026-08-12T18:00',
-    observacao: 'Workflow criado para o fechamento mensal.',
-  },
-]
-
-const usersSeed: UserRole[] = [
-  {
-    id: 1,
-    area: 'Recebimento',
-    perfil: 'ResponsavelRecebimento',
-    titular: currentUser,
-    backup: 'Daniele CSC',
-    email: 'aline.valle@empresa.com',
-    online: true,
-    ativo: true,
-  },
-  {
-    id: 2,
-    area: 'Apuracao',
-    perfil: 'Tributario',
-    titular: 'Leandra Nunes',
-    backup: currentUser,
-    email: 'leandra.nunes@empresa.com',
-    online: true,
-    ativo: true,
-  },
-  {
-    id: 3,
-    area: 'Contabilizacao',
-    perfil: 'Contador',
-    titular: 'Carlos Contador',
-    backup: currentUser,
-    email: 'carlos.contador@empresa.com',
-    online: false,
-    ativo: true,
-  },
-  {
-    id: 4,
-    area: 'Consolidacao',
-    perfil: 'Controladoria',
-    titular: 'Time Controladoria',
-    backup: currentUser,
-    email: 'controladoria@empresa.com',
-    online: true,
-    ativo: true,
-  },
-]
+const currentUserEmail = import.meta.env.VITE_DEV_USER_EMAIL || 'aline.valle@empresa.com'
+const currentUser =
+  import.meta.env.VITE_DEV_USER_NAME ||
+  currentUserEmail
+    .split('@')[0]
+    .split('.')
+    .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 
 function formatDateTime(value?: string) {
   if (!value) {
@@ -278,39 +100,92 @@ function formatDateTime(value?: string) {
   })
 }
 
-function deriveWorkflowStatus(items: Activity[]): WorkflowStatus {
-  if (items.length === 0) {
-    return 'Nao iniciado'
+function deriveWorkflowStage(status: WorkflowStatus, released: number, total: number) {
+  if (status === 'Concluido') {
+    return 'Finalizado'
   }
-
-  if (items.every((item) => item.status === 'Concluida')) {
-    return 'Concluido'
+  if (total === 0) {
+    return 'Sem atividades'
   }
-
-  if (items.some((item) => item.status === 'Liberada' || item.status === 'Concluida')) {
-    return 'Em andamento'
+  if (released > 0) {
+    return 'Em execucao'
   }
+  return 'Aguardando'
+}
 
-  return 'Nao iniciado'
+function mapWorkflow(row: Record<string, unknown>): WorkflowCard {
+  const status = (row.status as WorkflowStatus) || 'Nao iniciado'
+  const liberadas = Number(row.released_activities || 0)
+  const total = Number(row.total_activities || 0)
+
+  return {
+    id: String(row.id),
+    nome: String(row.name || ''),
+    rotina: (row.routine as 'Mensal' | 'Trimestral') || 'Mensal',
+    periodo: String(row.period || ''),
+    descricao: String(row.description || 'Workflow operacional sem descricao detalhada.'),
+    dataInicio: String(row.start_at || ''),
+    prazo: String(row.due_at || ''),
+    status,
+    concluidas: Number(row.completed_activities || 0),
+    liberadas,
+    total,
+    etapaAtual: deriveWorkflowStage(status, liberadas, total),
+    responsavelAtual: String(row.participant_email || currentUserEmail),
+  }
+}
+
+function mapActivity(row: Record<string, unknown>): Activity {
+  return {
+    id: String(row.id),
+    workflowId: String(row.workflow_id),
+    workflowNome: String(row.workflow_name || row.workflow_name || row.workflowNome || ''),
+    ordem: Number(row.order_index || 0),
+    empresa: String(row.company_name || ''),
+    nome: String(row.name || ''),
+    etapa: String(row.stage || ''),
+    tipo: (row.activity_type as ActivityType) || 'Execucao',
+    prazo: String(row.due_at || ''),
+    responsavel: String(row.responsible_user_email || ''),
+    revisor: row.reviewer_user_email ? String(row.reviewer_user_email) : undefined,
+    aprovador: row.approver_user_email ? String(row.approver_user_email) : undefined,
+    exigeAprovacao: Boolean(row.requires_approval),
+    exigeAnexo: Boolean(row.requires_attachment),
+    attachmentName: row.sharepoint_file_name ? String(row.sharepoint_file_name) : undefined,
+    status: (row.status as ActivityStatus) || 'Bloqueada',
+    resultado: (row.result as ActivityResult) || '',
+    dataLiberacao: row.created_at ? String(row.created_at) : undefined,
+    dataConclusao: row.updated_at && row.status === 'Concluida' ? String(row.updated_at) : undefined,
+    dataAprovacao: row.updated_at && row.result === 'Aprovado' ? String(row.updated_at) : undefined,
+    dataReprovacao:
+      row.updated_at && (row.result === 'Reprovado' || row.result === 'Nao Feito')
+        ? String(row.updated_at)
+        : undefined,
+  }
 }
 
 function App() {
   const [activeView, setActiveView] = useState<ViewKey>('home')
   const [showWorkflowForm, setShowWorkflowForm] = useState(false)
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<number | null>(null)
-  const [selectedActivityId, setSelectedActivityId] = useState<number | null>(null)
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null)
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('Pendentes')
-  const [logWorkflowFilter, setLogWorkflowFilter] = useState<number | 'all'>('all')
-  const [draggedActivityId, setDraggedActivityId] = useState<number | null>(null)
+  const [logWorkflowFilter, setLogWorkflowFilter] = useState<string | 'all'>('all')
+  const [draggedActivityId, setDraggedActivityId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
 
-  const [workflows, setWorkflows] = useState<Workflow[]>(workflowSeed)
-  const [activitiesState, setActivitiesState] = useState<Activity[]>(activitySeed)
-  const [history, setHistory] = useState<HistoryItem[]>(historySeed)
-  const [users, setUsers] = useState<UserRole[]>(usersSeed)
+  const [workflows, setWorkflows] = useState<WorkflowCard[]>([])
+  const [workflowActivities, setWorkflowActivities] = useState<Activity[]>([])
+  const [myActivitiesState, setMyActivitiesState] = useState<Activity[]>([])
+  const [history, setHistory] = useState<HistoryItem[]>([])
+  const [users, setUsers] = useState<UserRole[]>([])
 
   const [newWorkflow, setNewWorkflow] = useState({
     nome: '',
-    rotina: 'Mensal' as Workflow['rotina'],
+    rotina: 'Mensal' as WorkflowCard['rotina'],
     periodo: '',
     descricao: '',
     dataInicio: '',
@@ -323,87 +198,54 @@ function App() {
     etapa: 'Recebimento',
     tipo: 'Execucao' as ActivityType,
     prazo: '',
-    responsavel: currentUser,
+    responsavel: currentUserEmail,
     revisor: '',
     aprovador: '',
     exigeAprovacao: false,
     exigeAnexo: false,
   })
 
-  const workflowCards = useMemo(
+  const workflowNameMap = useMemo(
     () =>
-      workflows.map((workflow) => {
-        const items = activitiesState
-          .filter((activity) => activity.workflowId === workflow.id)
-          .sort((left, right) => left.ordem - right.ordem)
-        const concluidas = items.filter((activity) => activity.status === 'Concluida').length
-        const liberadas = items.filter((activity) => activity.status === 'Liberada').length
-        const primeiraPendente = items.find((activity) => activity.status === 'Liberada')
-        const proximaBloqueada = items.find((activity) => activity.status === 'Bloqueada')
-        const status = deriveWorkflowStatus(items)
-
-        return {
-          ...workflow,
-          status,
-          concluidas,
-          liberadas,
-          total: items.length,
-          etapaAtual:
-            primeiraPendente?.etapa ??
-            proximaBloqueada?.etapa ??
-            (status === 'Concluido' ? 'Finalizado' : 'Recebimento'),
-          responsavelAtual:
-            primeiraPendente?.responsavel ??
-            proximaBloqueada?.responsavel ??
-            'A definir',
-        }
-      }),
-    [activitiesState, workflows],
+      workflows.reduce<Record<string, string>>((accumulator, workflow) => {
+        accumulator[workflow.id] = workflow.nome
+        return accumulator
+      }, {}),
+    [workflows],
   )
 
   const selectedWorkflow = useMemo(
-    () => workflowCards.find((workflow) => workflow.id === selectedWorkflowId) ?? null,
-    [selectedWorkflowId, workflowCards],
+    () => workflows.find((workflow) => workflow.id === selectedWorkflowId) ?? null,
+    [selectedWorkflowId, workflows],
   )
 
-  const selectedWorkflowActivities = useMemo(() => {
-    if (!selectedWorkflow) {
-      return []
-    }
-
-    return activitiesState
-      .filter((activity) => activity.workflowId === selectedWorkflow.id)
-      .sort((left, right) => left.ordem - right.ordem)
-  }, [activitiesState, selectedWorkflow])
+  const selectedWorkflowActivities = useMemo(
+    () => [...workflowActivities].sort((left, right) => left.ordem - right.ordem),
+    [workflowActivities],
+  )
 
   const availablePeople = useMemo(() => {
-    const names = users.flatMap((user) => [user.titular, user.backup])
-    return Array.from(new Set([currentUser, ...names])).filter(Boolean)
+    const emails = users.flatMap((user) => [user.email])
+    return Array.from(new Set([currentUserEmail, ...emails])).filter(Boolean)
   }, [users])
 
   const myActivities = useMemo(() => {
-    const mine = activitiesState.filter(
-      (activity) =>
-        activity.responsavel === currentUser ||
-        activity.revisor === currentUser ||
-        activity.aprovador === currentUser,
-    )
-
     const byStatus =
       statusFilter === 'Pendentes'
-        ? mine.filter((activity) => activity.status === 'Liberada')
+        ? myActivitiesState.filter((activity) => activity.status === 'Liberada')
         : statusFilter === 'Concluidas'
-          ? mine.filter((activity) => activity.status === 'Concluida' || activity.status === 'Reprovada')
-          : mine
+          ? myActivitiesState.filter(
+              (activity) => activity.status === 'Concluida' || activity.status === 'Reprovada',
+            )
+          : myActivitiesState
 
-    return byStatus.sort((left, right) => {
+    return [...byStatus].sort((left, right) => {
       if (left.status !== right.status) {
         return left.status === 'Liberada' ? -1 : 1
       }
-
       return left.ordem - right.ordem
     })
-  }, [activitiesState, statusFilter])
+  }, [myActivitiesState, statusFilter])
 
   const selectedActivity = useMemo(
     () => myActivities.find((activity) => activity.id === selectedActivityId) ?? null,
@@ -423,13 +265,14 @@ function App() {
   }, [selectedActivity])
 
   const filteredHistory = useMemo(() => {
-    if (logWorkflowFilter === 'all') {
-      return [...history].sort((left, right) => right.id - left.id)
-    }
+    const byWorkflow =
+      logWorkflowFilter === 'all'
+        ? history
+        : history.filter((item) => item.workflowId === logWorkflowFilter)
 
-    return [...history]
-      .filter((item) => item.workflowId === logWorkflowFilter)
-      .sort((left, right) => right.id - left.id)
+    return [...byWorkflow].sort(
+      (left, right) => new Date(right.dataHora).getTime() - new Date(left.dataHora).getTime(),
+    )
   }, [history, logWorkflowFilter])
 
   const selectedWorkflowHistory = useMemo(() => {
@@ -439,32 +282,106 @@ function App() {
 
     return history
       .filter((item) => item.workflowId === selectedWorkflow.id)
-      .sort((left, right) => right.id - left.id)
+      .sort((left, right) => new Date(right.dataHora).getTime() - new Date(left.dataHora).getTime())
       .slice(0, 4)
   }, [history, selectedWorkflow])
 
-  const addHistory = (
-    workflowId: number,
-    workflowNome: string,
-    atividade: string,
-    acao: string,
-    observacao: string,
-  ) => {
-    setHistory((current) => [
-      {
-        id: Math.max(0, ...current.map((item) => item.id)) + 1,
-        workflowId,
-        workflowNome,
-        atividade,
-        acao,
-        dataHora: new Date().toISOString(),
-        observacao,
-      },
-      ...current,
+  const loadBaseData = async () => {
+    setErrorMessage('')
+    const [workflowRows, myActivityRows, logRows, userRows] = await Promise.all([
+      api.workflows(currentUserEmail),
+      api.myActivities(currentUserEmail),
+      api.logs(undefined, currentUserEmail),
+      api.users(currentUserEmail),
     ])
+
+    const mappedWorkflows = (workflowRows as Record<string, unknown>[]).map(mapWorkflow)
+    const mappedMyActivities = (myActivityRows as Record<string, unknown>[]).map(mapActivity)
+    const mappedUsers = (userRows as Record<string, unknown>[]).map((row) => ({
+      id: String(row.id),
+      area: String(row.area || ''),
+      perfil: String(row.role_name || ''),
+      titular: String(row.full_name || ''),
+      backup: '',
+      email: String(row.email || ''),
+      online: Boolean(row.is_online),
+      ativo: Boolean(row.is_active),
+    }))
+    const mappedHistory = (logRows as Record<string, unknown>[]).map((row) => ({
+      id: String(row.id),
+      workflowId: String(row.workflow_id || ''),
+      workflowNome: workflowNameMap[String(row.workflow_id || '')] || String(row.workflow_id || ''),
+      atividade: String(row.activity_name || ''),
+      acao: String(row.action || ''),
+      dataHora: String(row.performed_at || ''),
+      observacao: String(row.notes || ''),
+    }))
+
+    setWorkflows(mappedWorkflows)
+    setMyActivitiesState(mappedMyActivities)
+    setUsers(mappedUsers)
+    setHistory(mappedHistory)
   }
 
-  const reorderWorkflowActivities = (draggedId: number, targetId: number) => {
+  const loadWorkflowActivities = async (workflowId: string) => {
+    const rows = await api.workflowActivities(workflowId, currentUserEmail)
+    const workflowName = workflows.find((workflow) => workflow.id === workflowId)?.nome || ''
+    setWorkflowActivities(
+      (rows as Record<string, unknown>[]).map((row) =>
+        mapActivity({
+          ...row,
+          workflow_name: workflowName,
+        }),
+      ),
+    )
+  }
+
+  const refreshEverything = async (workflowId?: string | null) => {
+    await loadBaseData()
+    if (workflowId) {
+      await loadWorkflowActivities(workflowId)
+    }
+  }
+
+  useEffect(() => {
+    const bootstrap = async () => {
+      try {
+        setLoading(true)
+        await loadBaseData()
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Falha ao carregar dados.')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    void bootstrap()
+  }, [])
+
+  useEffect(() => {
+    if (!selectedWorkflowId) {
+      setWorkflowActivities([])
+      return
+    }
+
+    const fetchActivities = async () => {
+      try {
+        await loadWorkflowActivities(selectedWorkflowId)
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'Falha ao carregar atividades do workflow.')
+      }
+    }
+
+    void fetchActivities()
+  }, [selectedWorkflowId])
+
+  useEffect(() => {
+    if (selectedActivityId && !myActivities.some((activity) => activity.id === selectedActivityId)) {
+      setSelectedActivityId(myActivities[0]?.id || null)
+    }
+  }, [myActivities, selectedActivityId])
+
+  const reorderWorkflowActivities = async (draggedId: string, targetId: string) => {
     if (!selectedWorkflow || draggedId === targetId) {
       return
     }
@@ -480,25 +397,22 @@ function App() {
     const [draggedItem] = workflowItems.splice(draggedIndex, 1)
     workflowItems.splice(targetIndex, 0, draggedItem)
 
-    const reordered = workflowItems.map((activity, index) => ({
-      ...activity,
-      ordem: index + 1,
-    }))
+    const orderedIds = workflowItems.map((activity) => activity.id)
 
-    setActivitiesState((current) =>
-      current.map((activity) => reordered.find((item) => item.id === activity.id) ?? activity),
-    )
-
-    addHistory(
-      selectedWorkflow.id,
-      selectedWorkflow.nome,
-      'Workflow',
-      'Reordenacao',
-      'Ordem das atividades ajustada manualmente.',
-    )
+    try {
+      setSubmitting(true)
+      await api.reorderWorkflowActivities(selectedWorkflow.id, orderedIds, currentUserEmail)
+      await loadWorkflowActivities(selectedWorkflow.id)
+      await loadBaseData()
+      setSuccessMessage('Ordem das atividades atualizada.')
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Falha ao reordenar atividades.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleCreateWorkflow = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateWorkflow = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     if (
@@ -507,265 +421,185 @@ function App() {
       !newWorkflow.dataInicio ||
       !newWorkflow.prazo
     ) {
+      setErrorMessage('Preencha nome, periodo, data de inicio e prazo.')
       return
     }
 
-    const nextId = Math.max(0, ...workflows.map((workflow) => workflow.id)) + 1
-    const created: Workflow = {
-      id: nextId,
-      nome: newWorkflow.nome.trim(),
-      rotina: newWorkflow.rotina,
-      periodo: newWorkflow.periodo.trim(),
-      descricao: newWorkflow.descricao.trim() || 'Workflow criado manualmente pela operacao.',
-      dataInicio: newWorkflow.dataInicio,
-      prazo: newWorkflow.prazo,
+    try {
+      setSubmitting(true)
+      setErrorMessage('')
+      await api.createWorkflow(
+        {
+          name: newWorkflow.nome.trim(),
+          routine: newWorkflow.rotina,
+          period: newWorkflow.periodo.trim(),
+          description: newWorkflow.descricao.trim(),
+          start_at: newWorkflow.dataInicio,
+          due_at: newWorkflow.prazo,
+        },
+        currentUserEmail,
+      )
+
+      await loadBaseData()
+      setShowWorkflowForm(false)
+      setNewWorkflow({
+        nome: '',
+        rotina: 'Mensal',
+        periodo: '',
+        descricao: '',
+        dataInicio: '',
+        prazo: '',
+      })
+      setSuccessMessage('Workflow salvo no Supabase.')
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Falha ao criar workflow.')
+    } finally {
+      setSubmitting(false)
     }
-
-    setWorkflows((current) => [created, ...current])
-    setSelectedWorkflowId(created.id)
-    setShowWorkflowForm(false)
-    setNewWorkflow({
-      nome: '',
-      rotina: 'Mensal',
-      periodo: '',
-      descricao: '',
-      dataInicio: '',
-      prazo: '',
-    })
-
-    addHistory(created.id, created.nome, 'Workflow', 'Criado', 'Workflow criado com sucesso.')
   }
 
-  const handleCreateActivity = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateActivity = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
     if (!selectedWorkflow || !newActivity.empresa.trim() || !newActivity.nome.trim() || !newActivity.prazo) {
+      setErrorMessage('Preencha empresa, nome e prazo da atividade.')
       return
     }
 
-    const nextId = Math.max(0, ...activitiesState.map((activity) => activity.id)) + 1
-    const hasAnyReleased = selectedWorkflowActivities.some((activity) => activity.status === 'Liberada')
-    const hasAnyCompleted = selectedWorkflowActivities.some((activity) => activity.status === 'Concluida')
-    const shouldReleaseNow = selectedWorkflowActivities.length === 0 && !hasAnyReleased && !hasAnyCompleted
+    try {
+      setSubmitting(true)
+      setErrorMessage('')
+      await api.createWorkflowActivity(
+        selectedWorkflow.id,
+        {
+          company_name: newActivity.empresa.trim(),
+          name: newActivity.nome.trim(),
+          stage: newActivity.etapa,
+          activity_type: newActivity.tipo,
+          due_at: newActivity.prazo,
+          responsible_user_email: newActivity.responsavel,
+          reviewer_user_email: newActivity.revisor || null,
+          approver_user_email: newActivity.aprovador || null,
+          requires_approval: newActivity.exigeAprovacao,
+          requires_attachment: newActivity.exigeAnexo,
+        },
+        currentUserEmail,
+      )
 
-    const created: Activity = {
-      id: nextId,
-      workflowId: selectedWorkflow.id,
-      workflowNome: selectedWorkflow.nome,
-      ordem: selectedWorkflowActivities.length + 1,
-      empresa: newActivity.empresa.trim(),
-      nome: newActivity.nome.trim(),
-      etapa: newActivity.etapa,
-      tipo: newActivity.tipo,
-      prazo: newActivity.prazo,
-      responsavel: newActivity.responsavel.trim() || currentUser,
-      revisor: newActivity.revisor.trim() || undefined,
-      aprovador: newActivity.aprovador.trim() || undefined,
-      exigeAprovacao: newActivity.exigeAprovacao,
-      exigeAnexo: newActivity.exigeAnexo,
-      status: shouldReleaseNow ? 'Liberada' : 'Bloqueada',
-      resultado: '',
-      dataLiberacao: shouldReleaseNow ? new Date().toISOString() : undefined,
-    }
-
-    setActivitiesState((current) => [...current, created])
-    setNewActivity({
-      empresa: '',
-      nome: '',
-      etapa: 'Recebimento',
-      tipo: 'Execucao',
-      prazo: '',
-      responsavel: currentUser,
-      revisor: '',
-      aprovador: '',
-      exigeAprovacao: false,
-      exigeAnexo: false,
-    })
-
-    addHistory(
-      selectedWorkflow.id,
-      selectedWorkflow.nome,
-      created.nome,
-      'Cadastro',
-      shouldReleaseNow
-        ? 'Atividade criada e liberada automaticamente.'
-        : 'Atividade criada e posicionada na fila do workflow.',
-    )
-  }
-
-  const updateActivityAndRefreshSelection = (updatedList: Activity[], updatedId?: number) => {
-    setActivitiesState(updatedList)
-
-    if (updatedId) {
-      setSelectedActivityId(updatedId)
+      await refreshEverything(selectedWorkflow.id)
+      setNewActivity({
+        empresa: '',
+        nome: '',
+        etapa: 'Recebimento',
+        tipo: 'Execucao',
+        prazo: '',
+        responsavel: currentUserEmail,
+        revisor: '',
+        aprovador: '',
+        exigeAprovacao: false,
+        exigeAnexo: false,
+      })
+      setSuccessMessage('Atividade registrada no workflow.')
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Falha ao registrar atividade.')
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  const unlockNextActivity = (activity: Activity, items: Activity[]) => {
-    const next = items
-      .filter((item) => item.workflowId === activity.workflowId && item.ordem > activity.ordem)
-      .sort((left, right) => left.ordem - right.ordem)
-      .find((item) => item.status === 'Bloqueada')
-
-    if (!next) {
-      return items
-    }
-
-    const updated = items.map((item) =>
-      item.id === next.id
-        ? {
-            ...item,
-            status: 'Liberada' as ActivityStatus,
-            dataLiberacao: new Date().toISOString(),
-          }
-        : item,
-    )
-
-    addHistory(
-      next.workflowId,
-      next.workflowNome,
-      next.nome,
-      'Liberada',
-      'Proxima atividade liberada automaticamente.',
-    )
-
-    return updated
-  }
-
-  const reopenPreviousActivity = (activity: Activity, items: Activity[]) => {
-    const previous = items
-      .filter((item) => item.workflowId === activity.workflowId && item.ordem < activity.ordem)
-      .sort((left, right) => right.ordem - left.ordem)[0]
-
-    if (!previous) {
-      return items
-    }
-
-    const updated = items.map((item) =>
-      item.id === previous.id
-        ? {
-            ...item,
-            status: 'Liberada' as ActivityStatus,
-            dataLiberacao: new Date().toISOString(),
-          }
-        : item,
-    )
-
-    addHistory(
-      previous.workflowId,
-      previous.workflowNome,
-      previous.nome,
-      'Retorno',
-      'Atividade anterior reaberta por reprovacao/nao feito.',
-    )
-
-    return updated
-  }
-
-  const handleExecutionAction = (result: 'Feito' | 'Nao Feito') => {
+  const handleDecision = async (result: 'Feito' | 'Nao Feito' | 'Aprovado' | 'Reprovado') => {
     if (!selectedActivity) {
       return
     }
 
     if (selectedActivity.exigeAnexo && !selectedActivity.attachmentName) {
+      setErrorMessage('Esta atividade exige anexo antes da decisao.')
       return
     }
 
-    const timestamp = new Date().toISOString()
-    let updatedList = activitiesState.map((activity) =>
-      activity.id === selectedActivity.id
-        ? {
-            ...activity,
-            resultado: result,
-            status: result === 'Feito' ? ('Concluida' as ActivityStatus) : ('Reprovada' as ActivityStatus),
-            dataConclusao: result === 'Feito' ? timestamp : activity.dataConclusao,
-            dataReprovacao: result === 'Nao Feito' ? timestamp : activity.dataReprovacao,
-          }
-        : activity,
-    )
-
-    addHistory(
-      selectedActivity.workflowId,
-      selectedActivity.workflowNome,
-      selectedActivity.nome,
-      result,
-      result === 'Feito'
-        ? 'Atividade concluida pelo responsavel.'
-        : 'Atividade marcada como nao feita e fluxo devolvido.',
-    )
-
-    updatedList =
-      result === 'Feito'
-        ? unlockNextActivity(selectedActivity, updatedList)
-        : reopenPreviousActivity(selectedActivity, updatedList)
-
-    updateActivityAndRefreshSelection(updatedList, selectedActivity.id)
+    try {
+      setSubmitting(true)
+      setErrorMessage('')
+      await api.decideActivity(
+        selectedActivity.id,
+        {
+          action: result,
+          notes: `Acao registrada no app: ${result}`,
+        },
+        currentUserEmail,
+      )
+      await refreshEverything(selectedWorkflowId)
+      setSuccessMessage(`Acao ${result} registrada com sucesso.`)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Falha ao registrar decisao.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const handleApprovalAction = (result: 'Aprovado' | 'Reprovado') => {
-    if (!selectedActivity) {
-      return
-    }
-
-    if (selectedActivity.exigeAnexo && !selectedActivity.attachmentName) {
-      return
-    }
-
-    const timestamp = new Date().toISOString()
-    let updatedList = activitiesState.map((activity) =>
-      activity.id === selectedActivity.id
-        ? {
-            ...activity,
-            resultado: result,
-            status: result === 'Aprovado' ? ('Concluida' as ActivityStatus) : ('Reprovada' as ActivityStatus),
-            dataAprovacao: result === 'Aprovado' ? timestamp : activity.dataAprovacao,
-            dataReprovacao: result === 'Reprovado' ? timestamp : activity.dataReprovacao,
-          }
-        : activity,
-    )
-
-    addHistory(
-      selectedActivity.workflowId,
-      selectedActivity.workflowNome,
-      selectedActivity.nome,
-      result,
-      result === 'Aprovado'
-        ? 'Atividade aprovada e fluxo seguiu para a proxima etapa.'
-        : 'Atividade reprovada e fluxo retornou para a etapa anterior.',
-    )
-
-    updatedList =
-      result === 'Aprovado'
-        ? unlockNextActivity(selectedActivity, updatedList)
-        : reopenPreviousActivity(selectedActivity, updatedList)
-
-    updateActivityAndRefreshSelection(updatedList, selectedActivity.id)
-  }
-
-  const handleAttachmentChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleAttachmentChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!selectedActivity || !file) {
       return
     }
 
-    const updated = activitiesState.map((activity) =>
-      activity.id === selectedActivity.id ? { ...activity, attachmentName: file.name } : activity,
-    )
-
-    updateActivityAndRefreshSelection(updated, selectedActivity.id)
-
-    addHistory(
-      selectedActivity.workflowId,
-      selectedActivity.workflowNome,
-      selectedActivity.nome,
-      'Anexo',
-      `Arquivo anexado: ${file.name}`,
-    )
+    try {
+      setSubmitting(true)
+      setErrorMessage('')
+      await api.uploadAttachment(selectedActivity.id, file, currentUserEmail)
+      await refreshEverything(selectedWorkflowId)
+      setSuccessMessage('Anexo enviado com sucesso.')
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Falha ao enviar anexo. A integracao SharePoint pode ainda nao estar configurada.',
+      )
+    } finally {
+      setSubmitting(false)
+      event.target.value = ''
+    }
   }
 
-  const updateUser = (id: number, key: keyof UserRole, value: string | boolean) => {
+  const updateUser = async (id: string, key: keyof UserRole, value: string | boolean) => {
     setUsers((current) =>
       current.map((user) => (user.id === id ? { ...user, [key]: value } : user)),
+    )
+
+    const current = users.find((user) => user.id === id)
+    if (!current) {
+      return
+    }
+
+    const payloadByKey: Record<string, unknown> = {
+      full_name: key === 'titular' ? value : current.titular,
+      email: key === 'email' ? value : current.email,
+      area: key === 'area' ? value : current.area,
+      role_name: key === 'perfil' ? value : current.perfil,
+      is_online: key === 'online' ? value : current.online,
+      is_active: key === 'ativo' ? value : current.ativo,
+    }
+
+    try {
+      await api.updateUser(id, payloadByKey, currentUserEmail)
+      setSuccessMessage('Usuario atualizado.')
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Falha ao atualizar usuario.')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="app-shell">
+        <main className="workspace">
+          <section className="content-panel">
+            <div className="empty-state hero-empty">
+              <strong>Conectando ao Supabase...</strong>
+              <span>Estamos carregando workflows, atividades, log e usuarios reais.</span>
+            </div>
+          </section>
+        </main>
+      </div>
     )
   }
 
@@ -818,13 +652,22 @@ function App() {
           <div className="topbar-user">
             <div>
               <span>{currentUser}</span>
-              <small>Online agora</small>
+              <small>{currentUserEmail}</small>
             </div>
-            <div className="avatar">AV</div>
+            <div className="avatar">
+              {currentUser
+                .split(' ')
+                .map((part: string) => part.charAt(0))
+                .join('')
+                .slice(0, 2)}
+            </div>
           </div>
         </header>
 
         <section className="content-panel">
+          {errorMessage && <div className="helper-note">{errorMessage}</div>}
+          {successMessage && <div className="helper-note">{successMessage}</div>}
+
           {activeView === 'home' && (
             <>
               <div className="section-heading">
@@ -851,7 +694,7 @@ function App() {
                     <span className="section-badge">Etapa 1</span>
                   </div>
 
-                  <form className="builder-form" onSubmit={handleCreateWorkflow}>
+                  <form className="builder-form" onSubmit={(event) => void handleCreateWorkflow(event)}>
                     <label>
                       <span>Nome do workflow</span>
                       <input
@@ -870,7 +713,7 @@ function App() {
                         onChange={(event) =>
                           setNewWorkflow((current) => ({
                             ...current,
-                            rotina: event.target.value as Workflow['rotina'],
+                            rotina: event.target.value as WorkflowCard['rotina'],
                           }))
                         }
                       >
@@ -924,15 +767,15 @@ function App() {
                       />
                     </label>
 
-                    <button className="primary-button full-width" type="submit">
-                      Salvar workflow
+                    <button className="primary-button full-width" type="submit" disabled={submitting}>
+                      {submitting ? 'Salvando...' : 'Salvar workflow'}
                     </button>
                   </form>
                 </section>
               )}
 
               <div className="workflow-list">
-                {workflowCards.map((workflow) => (
+                {workflows.map((workflow) => (
                   <article
                     key={workflow.id}
                     className={selectedWorkflow?.id === workflow.id ? 'workflow-card selected' : 'workflow-card'}
@@ -979,8 +822,8 @@ function App() {
                     </div>
 
                     <div className="workflow-footer">
-                      <span className="workflow-owner">Responsavel atual: {workflow.responsavelAtual}</span>
-                      <span className="workflow-id">WF #{workflow.id}</span>
+                      <span className="workflow-owner">Participante: {workflow.responsavelAtual}</span>
+                      <span className="workflow-id">WF #{workflow.id.slice(0, 8)}</span>
                     </div>
                   </article>
                 ))}
@@ -1015,14 +858,18 @@ function App() {
                       {selectedWorkflowActivities.map((activity) => (
                         <div
                           key={activity.id}
-                          className={draggedActivityId === activity.id ? 'workflow-activity-row dragging' : 'workflow-activity-row'}
+                          className={
+                            draggedActivityId === activity.id
+                              ? 'workflow-activity-row dragging'
+                              : 'workflow-activity-row'
+                          }
                           draggable
                           onDragStart={() => setDraggedActivityId(activity.id)}
                           onDragEnd={() => setDraggedActivityId(null)}
                           onDragOver={(event) => event.preventDefault()}
                           onDrop={() => {
                             if (draggedActivityId !== null) {
-                              reorderWorkflowActivities(draggedActivityId, activity.id)
+                              void reorderWorkflowActivities(draggedActivityId, activity.id)
                             }
                             setDraggedActivityId(null)
                           }}
@@ -1041,15 +888,11 @@ function App() {
                               type="button"
                               className="ghost-order"
                               onClick={() => {
-                                if (activity.ordem === 1) {
-                                  return
-                                }
-
                                 const previous = selectedWorkflowActivities.find(
                                   (item) => item.ordem === activity.ordem - 1,
                                 )
                                 if (previous) {
-                                  reorderWorkflowActivities(activity.id, previous.id)
+                                  void reorderWorkflowActivities(activity.id, previous.id)
                                 }
                               }}
                             >
@@ -1063,7 +906,7 @@ function App() {
                                   (item) => item.ordem === activity.ordem + 1,
                                 )
                                 if (next) {
-                                  reorderWorkflowActivities(activity.id, next.id)
+                                  void reorderWorkflowActivities(activity.id, next.id)
                                 }
                               }}
                             >
@@ -1076,7 +919,7 @@ function App() {
                     </div>
 
                     <div className="helper-note">
-                      Arraste, suba ou desca atividades para montar a trilha real do fechamento. Aqui voce controla o macro do macro e consegue incluir novas tarefas a qualquer momento.
+                      Arraste, suba ou desca atividades para montar a trilha real do fechamento.
                     </div>
                   </section>
 
@@ -1088,7 +931,7 @@ function App() {
                       </div>
                     </div>
 
-                    <form className="builder-form" onSubmit={handleCreateActivity}>
+                    <form className="builder-form" onSubmit={(event) => void handleCreateActivity(event)}>
                       <label>
                         <span>Empresa</span>
                         <input
@@ -1228,8 +1071,8 @@ function App() {
                         <span>Exige anexo</span>
                       </label>
 
-                      <button className="primary-button full-width" type="submit">
-                        Registrar atividade neste workflow
+                      <button className="primary-button full-width" type="submit" disabled={submitting}>
+                        {submitting ? 'Registrando...' : 'Registrar atividade neste workflow'}
                       </button>
                     </form>
                   </section>
@@ -1362,7 +1205,7 @@ function App() {
                         <div className="upload-panel">
                           <label className="upload-label">
                             <span>Anexo obrigatorio</span>
-                            <input type="file" onChange={handleAttachmentChange} />
+                            <input type="file" onChange={(event) => void handleAttachmentChange(event)} />
                           </label>
                           <p>{selectedActivity.attachmentName || 'Nenhum arquivo anexado ainda.'}</p>
                         </div>
@@ -1371,10 +1214,10 @@ function App() {
                       <div className="action-bar">
                         {selectedActionMode === 'execution' && (
                           <>
-                            <button className="danger-button" type="button" onClick={() => handleExecutionAction('Nao Feito')}>
+                            <button className="danger-button" type="button" onClick={() => void handleDecision('Nao Feito')}>
                               Nao Feito
                             </button>
-                            <button className="success-button" type="button" onClick={() => handleExecutionAction('Feito')}>
+                            <button className="success-button" type="button" onClick={() => void handleDecision('Feito')}>
                               Feito
                             </button>
                           </>
@@ -1382,10 +1225,10 @@ function App() {
 
                         {selectedActionMode === 'approval' && (
                           <>
-                            <button className="danger-button" type="button" onClick={() => handleApprovalAction('Reprovado')}>
+                            <button className="danger-button" type="button" onClick={() => void handleDecision('Reprovado')}>
                               Reprovado
                             </button>
-                            <button className="success-button" type="button" onClick={() => handleApprovalAction('Aprovado')}>
+                            <button className="success-button" type="button" onClick={() => void handleDecision('Aprovado')}>
                               Aprovado
                             </button>
                           </>
@@ -1421,14 +1264,10 @@ function App() {
                   <span>Workflow</span>
                   <select
                     value={logWorkflowFilter}
-                    onChange={(event) =>
-                      setLogWorkflowFilter(
-                        event.target.value === 'all' ? 'all' : Number(event.target.value),
-                      )
-                    }
+                    onChange={(event) => setLogWorkflowFilter(event.target.value)}
                   >
                     <option value="all">Todos os workflows</option>
-                    {workflowCards.map((workflow) => (
+                    {workflows.map((workflow) => (
                       <option key={workflow.id} value={workflow.id}>
                         {workflow.nome}
                       </option>
@@ -1445,7 +1284,7 @@ function App() {
                       <span className="history-time">{formatDateTime(item.dataHora)}</span>
                     </div>
                     <div className="history-meta">
-                      <span>{item.workflowNome}</span>
+                      <span>{item.workflowNome || workflowNameMap[item.workflowId] || item.workflowId}</span>
                       <span>{item.acao}</span>
                     </div>
                     <p>{item.observacao}</p>
@@ -1460,7 +1299,7 @@ function App() {
               <div className="section-heading">
                 <div>
                   <h1>Usuarios e Perfis</h1>
-                  <p>Defina titulares, backups, emails, online e o responsavel por cada area do fluxo.</p>
+                  <p>Defina titulares, emails, online e o responsavel por cada area do fluxo.</p>
                 </div>
               </div>
 
@@ -1477,17 +1316,23 @@ function App() {
 
                 {users.map((user) => (
                   <div key={user.id} className="user-row">
-                    <span>{user.area}</span>
-                    <span>{user.perfil}</span>
-                    <input value={user.titular} onChange={(event) => updateUser(user.id, 'titular', event.target.value)} />
-                    <input value={user.backup} onChange={(event) => updateUser(user.id, 'backup', event.target.value)} />
-                    <input value={user.email} onChange={(event) => updateUser(user.id, 'email', event.target.value)} />
+                    <span>{user.area || '-'}</span>
+                    <span>{user.perfil || '-'}</span>
+                    <input
+                      value={user.titular}
+                      onChange={(event) => void updateUser(user.id, 'titular', event.target.value)}
+                    />
+                    <input value={user.backup} readOnly placeholder="Proxima etapa" />
+                    <input
+                      value={user.email}
+                      onChange={(event) => void updateUser(user.id, 'email', event.target.value)}
+                    />
 
                     <label className="toggle-chip">
                       <input
                         type="checkbox"
                         checked={user.online}
-                        onChange={(event) => updateUser(user.id, 'online', event.target.checked)}
+                        onChange={(event) => void updateUser(user.id, 'online', event.target.checked)}
                       />
                       <span className={user.online ? 'online-dot live' : 'online-dot'} />
                       {user.online ? 'Online' : 'Offline'}
@@ -1497,7 +1342,7 @@ function App() {
                       <input
                         type="checkbox"
                         checked={user.ativo}
-                        onChange={(event) => updateUser(user.id, 'ativo', event.target.checked)}
+                        onChange={(event) => void updateUser(user.id, 'ativo', event.target.checked)}
                       />
                       {user.ativo ? 'Ativo' : 'Inativo'}
                     </label>
@@ -1524,7 +1369,7 @@ function App() {
                       <span className="history-time">{formatDateTime(item.dataHora)}</span>
                     </div>
                     <div className="history-meta">
-                      <span>{item.workflowNome}</span>
+                      <span>{item.workflowNome || selectedWorkflow.nome}</span>
                       <span>{item.acao}</span>
                     </div>
                     <p>{item.observacao}</p>
