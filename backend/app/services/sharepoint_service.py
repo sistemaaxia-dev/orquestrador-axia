@@ -21,6 +21,28 @@ class SharePointService:
         self.site_path = current_app.config["SHAREPOINT_SITE_PATH"]
         self.library = current_app.config["SHAREPOINT_DOCUMENT_LIBRARY"]
         self.upload_folder = current_app.config["SHAREPOINT_UPLOAD_FOLDER"]
+        self._validate_config()
+
+    def _validate_config(self) -> None:
+        missing = []
+        required_fields = {
+            "SHAREPOINT_TENANT_ID": self.tenant_id,
+            "SHAREPOINT_CLIENT_ID": self.client_id,
+            "SHAREPOINT_CLIENT_SECRET": self.client_secret,
+            "SHAREPOINT_HOSTNAME": self.hostname,
+            "SHAREPOINT_SITE_PATH": self.site_path,
+            "SHAREPOINT_DOCUMENT_LIBRARY": self.library,
+        }
+
+        for field_name, field_value in required_fields.items():
+            if not field_value:
+                missing.append(field_name)
+
+        if missing:
+            raise RuntimeError(
+                "Integracao SharePoint nao configurada. Preencha: "
+                + ", ".join(missing)
+            )
 
     def _token(self) -> str:
         authority = f"https://login.microsoftonline.com/{self.tenant_id}"
@@ -31,7 +53,8 @@ class SharePointService:
         )
         result = app.acquire_token_for_client(scopes=["https://graph.microsoft.com/.default"])
         if "access_token" not in result:
-            raise RuntimeError("Nao foi possivel obter token do Microsoft Graph.")
+            detail = result.get("error_description") or result.get("error") or "erro desconhecido"
+            raise RuntimeError(f"Nao foi possivel obter token do Microsoft Graph. Detalhe: {detail}")
         return result["access_token"]
 
     def _headers(self) -> dict[str, str]:

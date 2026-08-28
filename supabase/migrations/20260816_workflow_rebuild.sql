@@ -154,35 +154,6 @@ create index if not exists idx_workflow_activity_dependencies_depends on public.
 create index if not exists idx_audit_logs_workflow on public.audit_logs(workflow_id, created_at desc);
 create index if not exists idx_audit_logs_entity on public.audit_logs(entity_type, entity_id, created_at desc);
 
--- Operational master data. Kept idempotent for installations that use schema.sql directly.
-alter table public.user_profiles add column if not exists team_name text;
-alter table public.user_profiles add column if not exists team_email citext;
-alter table public.workflows add column if not exists is_active boolean not null default false;
-create table if not exists public.companies (
-  id uuid primary key default gen_random_uuid(), name text not null unique,
-  is_active boolean not null default true, created_at timestamptz not null default timezone('utc', now()), updated_at timestamptz not null default timezone('utc', now())
-);
-create table if not exists public.company_holidays (
-  id uuid primary key default gen_random_uuid(), company_id uuid references public.companies(id) on delete set null,
-  holiday_date date not null unique, description text, created_at timestamptz not null default timezone('utc', now())
-);
-create table if not exists public.teams (
-  id uuid primary key default gen_random_uuid(), name text not null unique, email citext,
-  is_active boolean not null default true, created_at timestamptz not null default timezone('utc', now()), updated_at timestamptz not null default timezone('utc', now())
-);
-create table if not exists public.directorates (
-  id uuid primary key default gen_random_uuid(), name text not null unique,
-  is_active boolean not null default true, created_at timestamptz not null default timezone('utc', now()), updated_at timestamptz not null default timezone('utc', now())
-);
-alter table public.activity_templates add column if not exists deadline_type text not null default 'fixed_date';
-alter table public.activity_templates add column if not exists deadline_days integer;
-alter table public.activity_templates add column if not exists notify_team boolean not null default false;
-alter table public.activity_templates add column if not exists team_email_snapshot citext;
-alter table public.workflow_activities add column if not exists deadline_type text not null default 'fixed_date';
-alter table public.workflow_activities add column if not exists deadline_days integer;
-alter table public.workflow_activities add column if not exists notify_team boolean not null default false;
-alter table public.workflow_activities add column if not exists team_email_snapshot citext;
-
 drop trigger if exists trg_user_profiles_updated_at on public.user_profiles;
 create trigger trg_user_profiles_updated_at
 before update on public.user_profiles
