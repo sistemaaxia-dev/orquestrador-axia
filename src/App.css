@@ -2274,6 +2274,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .brand-block { justify-content: center; min-height: 82px; }
 .product-brand { display: block; width: clamp(170px, 18vw, 260px); height: auto; object-fit: contain; }
 @media (max-width: 760px) { .product-brand { order: -1; align-self: flex-end; }.workspace-topbar { gap: 18px; } }
+@media (min-width: 861px) {
+  .workspace-topbar { position: relative; }
+  .product-brand { position: absolute; top: -60px; right: 0; }
+}
 
 @media (max-width: 560px) {
   .auth-card > :not(.auth-axia-brand) { margin-inline: 22px; }
