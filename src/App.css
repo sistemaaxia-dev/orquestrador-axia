@@ -2269,21 +2269,20 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .auth-card input { border-color: #d4dbea; background: #edf2ff; }
 .auth-card .primary-button { background: linear-gradient(110deg, #2e00ec, #5200ff); }
 
-.brand-block:has(.sidebar-product-logo) {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  padding: 14px;
-}
 .sidebar-product-logo {
   display: block;
   width: 100%;
-  max-width: 190px;
+  max-width: 150px;
   height: auto;
-  border-radius: 8px;
+  border-radius: 6px;
   background: #fff;
 }
-.brand-block:has(.sidebar-product-logo) p {
+.sidebar-brand-copy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+.sidebar-brand-copy p {
   margin: 0;
 }
 
