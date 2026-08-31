@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from
 import type { Session } from '@supabase/supabase-js'
 import { api } from './lib/api'
 import { supabase } from './lib/supabase'
+import orquestradorLogo from './assets/orquestrador-logo.jpeg'
 import './App.css'
 
 type Profile = {
@@ -363,8 +364,7 @@ function LoginRegisterPage({ onAuthenticated }: { onAuthenticated: () => Promise
     <div className="auth-shell">
       <div className="auth-card">
         <div className="auth-axia-brand">AXIA ENERGIA</div>
-        <div className="auth-product-brand"><span className="auth-checkmark">✓</span><strong>rquestrador</strong></div>
-        <p className="auth-tagline">PLANEJE. ORGANIZE. EXECUTE.</p>
+        <img className="auth-product-brand" src={orquestradorLogo} alt="Orquestrador — Planeje, organize, execute" />
         <p className="muted-text">
           {mode === 'login'
             ? 'Entre com seu e-mail e senha. Se ainda não tiver acesso, use cadastrar.'
