@@ -532,12 +532,8 @@ function ProtectedLayout({ context }: { context: AppContextShape }) {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand-panel brand-block">
-          <div className="brand-mark" aria-label="AXIA">AXIA</div>
-          <div className="sidebar-brand-copy">
-            <img className="sidebar-product-logo" src={orquestradorLogo} alt="Orquestrador — Planeje, organize, execute" />
-            <p>{context.profile?.name}</p>
-          </div>
+        <div className="brand-panel brand-block" aria-label="AXIA Energia">
+          <div className="axia-logo">AXIA <span>ENERGIA</span></div>
         </div>
 
         <nav className="nav-links">
@@ -565,6 +561,7 @@ function ProtectedLayout({ context }: { context: AppContextShape }) {
             <h1>{pageTitle}</h1>
             <p>Workflows, atividades e prazos em uma visao unica.</p>
           </div>
+          <img className="product-brand" src={orquestradorLogo} alt="Orquestrador — Planeje, organize, execute" />
           <div className="session-chip">
             <span>Usuario conectado</span>
             <strong>{context.profile?.name}</strong>
