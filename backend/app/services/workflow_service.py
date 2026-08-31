@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import unicodedata
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -1969,6 +1971,35 @@ class WorkflowService:
         def metadata_value(value: Any) -> str:
             return str(value or "").replace("\r", " ").replace("\n", " ").strip()
 
+        def sharepoint_segment(value: Any, *, fallback: str, max_length: int = 80) -> str:
+            normalized = unicodedata.normalize("NFKD", metadata_value(value))
+            ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
+            safe_value = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "-", ascii_value)
+            safe_value = re.sub(r"\s+", " ", safe_value).strip(" .-")
+            safe_value = re.sub(r"-+", "-", safe_value) or fallback
+            return safe_value[:max_length].rstrip(" .-") or fallback
+
+        def id_token(value: Any) -> str:
+            return re.sub(r"[^A-Za-z0-9-]", "", metadata_value(value))[:12] or "sem-id"
+
+        workflow_name = metadata_value(workflow_data.get("name"))
+        activity_name = metadata_value(activity.get("name_snapshot"))
+        file_name = metadata_value(file.filename or "anexo.bin")
+        workflow_folder = "__".join(
+            [
+                sharepoint_segment(period or "sem-periodo", fallback="sem-periodo", max_length=20),
+                sharepoint_segment(workflow_name, fallback="workflow"),
+                id_token(activity["workflow_id"]),
+            ]
+        )
+        activity_folder = "__".join(
+            [
+                sharepoint_segment(activity.get("company_snapshot"), fallback="sem-empresa"),
+                sharepoint_segment(activity_name, fallback="atividade"),
+                id_token(activity["id"]),
+            ]
+        )
+
         routing = {
             "recipient": email_service.attachment_to,
             "submission_id": str(uuid4()),
@@ -1976,7 +2007,12 @@ class WorkflowService:
             "activity_id": str(activity["id"]),
             "period": period,
             "company": metadata_value(activity.get("company_snapshot")),
+            "workflow_folder": workflow_folder,
+            "activity_folder": activity_folder,
         }
+        stored_file_name = f"{routing['submission_id']}__{sharepoint_segment(file_name, fallback='anexo.bin', max_length=140)}"
+        routing["stored_file_name"] = stored_file_name
+        routing["sharepoint_path"] = f"{workflow_folder}/{activity_folder}/{stored_file_name}"
         subject = (
             f"CHAVE|ENVIO={routing['submission_id']}|WORKFLOW={routing['workflow_id']}|"
             f"ATIVIDADE={routing['activity_id']}|PERIODO={period or 'NA'}"
@@ -1987,12 +2023,16 @@ class WorkflowService:
                 "VERSAO=1",
                 f"ENVIO_ID={routing['submission_id']}",
                 f"WORKFLOW_ID={routing['workflow_id']}",
-                f"WORKFLOW_NOME={metadata_value(workflow_data.get('name'))}",
+                f"WORKFLOW_NOME={workflow_name}",
+                f"WORKFLOW_PASTA={workflow_folder}",
                 f"ATIVIDADE_ID={routing['activity_id']}",
-                f"ATIVIDADE_NOME={metadata_value(activity.get('name_snapshot'))}",
+                f"ATIVIDADE_NOME={activity_name}",
+                f"ATIVIDADE_PASTA={activity_folder}",
                 f"EMPRESA={routing['company']}",
                 f"PERIODO={period}",
-                f"ARQUIVO_NOME={metadata_value(file.filename or 'anexo.bin')}",
+                f"ARQUIVO_NOME={file_name}",
+                f"ARQUIVO_CHAVE={stored_file_name}",
+                f"SHAREPOINT_CAMINHO={routing['sharepoint_path']}",
                 f"ENVIADO_POR={metadata_value(user.email)}",
             ]
         )

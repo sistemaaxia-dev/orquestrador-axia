@@ -403,10 +403,20 @@ class WorkflowActionTests(unittest.TestCase):
         self.assertIn("|WORKFLOW=workflow-1|ATIVIDADE=activity-99|PERIODO=2026-08", call["subject"])
         self.assertIn("CHAVE=AXIOM_ATTACHMENT", call["text"])
         self.assertIn("WORKFLOW_NOME=Fechamento Fiscal", call["text"])
+        self.assertIn("WORKFLOW_PASTA=2026-08__Fechamento Fiscal__workflow-1", call["text"])
+        self.assertIn("ATIVIDADE_PASTA=Eletrobras__Conferir balancete__activity-99", call["text"])
         self.assertIn("EMPRESA=Eletrobras", call["text"])
+        self.assertIn(f"ARQUIVO_CHAVE={routing['submission_id']}__balancete-agosto.xlsx", call["text"])
+        self.assertIn(
+            f"SHAREPOINT_CAMINHO=2026-08__Fechamento Fiscal__workflow-1/"
+            f"Eletrobras__Conferir balancete__activity-99/{routing['submission_id']}__balancete-agosto.xlsx",
+            call["text"],
+        )
         self.assertEqual(call["attachments"][0][0], "balancete-agosto.xlsx")
         self.assertFalse(call["use_redirect"])
         self.assertEqual(routing["workflow_id"], "workflow-1")
+        self.assertEqual(routing["workflow_folder"], "2026-08__Fechamento Fiscal__workflow-1")
+        self.assertEqual(routing["activity_folder"], "Eletrobras__Conferir balancete__activity-99")
         self.assertIn(f"ENVIO_ID={routing['submission_id']}", call["text"])
 
 

@@ -34,10 +34,10 @@ class Config:
     SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
     SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
     SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "")
-    SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Projeto Axiom")
+    SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Gestão Contábil | Orquestrador")
     SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
     SMTP_REDIRECT_TO = os.getenv("SMTP_REDIRECT_TO", "")
-    SMTP_ATTACHMENT_TO = os.getenv("SMTP_ATTACHMENT_TO", "")
+    SMTP_ATTACHMENT_TO = os.getenv("SMTP_ATTACHMENT_TO", "aline.valle@axia.com.br")
     EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "resend").lower()
     RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
     RESEND_FROM_EMAIL = os.getenv("RESEND_FROM_EMAIL", "")
