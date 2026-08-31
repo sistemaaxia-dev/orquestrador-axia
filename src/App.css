@@ -2269,6 +2269,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .auth-card input { border-color: #d4dbea; background: #edf2ff; }
 .auth-card .primary-button { background: linear-gradient(110deg, #2e00ec, #5200ff); }
 
+.brand-block:has(.sidebar-product-logo) {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 14px;
+}
+.sidebar-product-logo {
+  display: block;
+  width: 100%;
+  max-width: 190px;
+  height: auto;
+  border-radius: 8px;
+  background: #fff;
+}
+.brand-block:has(.sidebar-product-logo) p {
+  margin: 0;
+}
+
 @media (max-width: 560px) {
   .auth-card > :not(.auth-axia-brand) { margin-inline: 22px; }
   .auth-axia-brand { padding-inline: 22px; letter-spacing: .14em; }

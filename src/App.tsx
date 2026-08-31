@@ -533,11 +533,8 @@ function ProtectedLayout({ context }: { context: AppContextShape }) {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand-panel brand-block">
-          <div className="brand-mark" aria-label="AXIA">AXIA</div>
-          <div>
-            <h2>Orquestrador</h2>
-            <p>{context.profile?.name}</p>
-          </div>
+          <img className="sidebar-product-logo" src={orquestradorLogo} alt="Orquestrador — Planeje, organize, execute" />
+          <p>{context.profile?.name}</p>
         </div>
 
         <nav className="nav-links">
