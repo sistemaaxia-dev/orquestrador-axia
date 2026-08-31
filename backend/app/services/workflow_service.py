@@ -1637,10 +1637,21 @@ class WorkflowService:
     def create_workflow_activity(self, workflow_id: str, user: CurrentUser, payload: dict[str, Any]) -> dict[str, Any]:
         self._require_activity_manager(user)
         workflow = self._require_workflow_access(workflow_id, user, write=True)
-        for field in ["name", "stage", "routine"]:
+        for field in ["name", "stage", "routine", "company", "responsible_user_id", "responsible_backup_user_id", "deadline_type"]:
             if not payload.get(field):
                 raise WorkflowError(f"Campo obrigatorio ausente: {field}")
-        if payload.get("deadline_type", "fixed_date") == "fixed_date" and not payload.get("expected_end_date"):
+        deadline_type = payload.get("deadline_type")
+        if deadline_type not in {"fixed_date", "business_days"}:
+            raise WorkflowError("Tipo de prazo invalido.")
+        if deadline_type == "business_days" and payload.get("deadline_days") in (None, ""):
+            raise WorkflowError("Informe a quantidade de dias uteis para o prazo.")
+        if deadline_type == "business_days":
+            try:
+                if int(payload["deadline_days"]) <= 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                raise WorkflowError("Informe uma quantidade positiva de dias uteis para o prazo.")
+        if deadline_type == "fixed_date" and not payload.get("expected_end_date"):
             raise WorkflowError("Campo obrigatorio ausente: expected_end_date")
         self._validate_stage(payload["stage"])
         self._validate_routine(payload["routine"])

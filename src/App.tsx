@@ -341,6 +341,24 @@ function LoginRegisterPage({ onAuthenticated }: { onAuthenticated: () => Promise
     }
   }
 
+  const recoverPassword = async () => {
+    if (!email.trim()) {
+      setError('Informe seu e-mail para recuperar a senha.')
+      return
+    }
+    try {
+      setBusy(true)
+      setError('')
+      setMessage('')
+      const response = await api.startAccess(email.trim())
+      setMessage(response.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Não foi possível solicitar uma nova senha.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="auth-shell">
       <div className="auth-card">
@@ -396,9 +414,14 @@ function LoginRegisterPage({ onAuthenticated }: { onAuthenticated: () => Promise
         )}
 
         {mode === 'login' ? (
-          <button type="button" className="primary-button" onClick={() => void login()} disabled={busy || !email || !password}>
-            {busy ? 'Entrando...' : 'Entrar'}
-          </button>
+          <>
+            <button type="button" className="primary-button" onClick={() => void login()} disabled={busy || !email || !password}>
+              {busy ? 'Entrando...' : 'Entrar'}
+            </button>
+            <button type="button" className="secondary-button auth-forgot-password" onClick={() => void recoverPassword()} disabled={busy}>
+              Esqueci minha senha
+            </button>
+          </>
         ) : (
           <button
             type="button"
@@ -1238,6 +1261,15 @@ function ActivitiesPage({ context }: { context: AppContextShape }) {
   const templates = context.templates.filter((template) => template.name.toLowerCase().includes(search.trim().toLowerCase()))
   const companyOptions = [{ value: 'Total das Empresas', label: 'Total das Empresas' }, ...context.companies.filter((company) => company.is_active).map((company) => ({ value: company.name, label: company.name }))]
   const predecessorOptions = context.selectedWorkflowActivities.filter((activity) => !activityForm.company || activityForm.company === 'Total das Empresas' || activity.company_snapshot === activityForm.company).map((activity) => ({ value: activity.id, label: `${activity.name_snapshot} - ${activity.company_snapshot || 'Sem empresa'}` }))
+  const requiredActivityFieldsMissing = !activityForm.company
+    || !activityForm.name.trim()
+    || !activityForm.stage
+    || !activityForm.routine
+    || !activityForm.deadline_type
+    || (activityForm.deadline_type === 'business_days' && (!activityForm.deadline_days || Number(activityForm.deadline_days) <= 0))
+    || !activityForm.expected_end_date
+    || !activityForm.responsible_user_id
+    || !activityForm.responsible_backup_user_id
   const activityToken = context.token
   const reportActivityError = useEffectEvent(context.setError)
   const loadAllActivities = async () => {
@@ -1282,6 +1314,10 @@ function ActivitiesPage({ context }: { context: AppContextShape }) {
   const createActivity = async () => {
     if (!context.token || !context.selectedWorkflowId) return
     setFormError('')
+    if (requiredActivityFieldsMissing) {
+      setFormError('Preencha todos os campos obrigatórios para criar a atividade.')
+      return
+    }
     setSavingActivity(true)
     try {
       await api.createWorkflowActivity(context.token, context.selectedWorkflowId, {
@@ -1344,17 +1380,17 @@ function ActivitiesPage({ context }: { context: AppContextShape }) {
         <div className="panel-header"><div><p className="eyebrow">Nova atividade</p><h2>Dados da atividade</h2></div><span>{selectedWorkflow?.name || 'Selecione um workflow'}</span></div>
         {formError && <p className="form-error">{formError}</p>}
         <div className="form-grid">
-          <SelectField label="Empresa cadastrada" value={activityForm.company} onChange={(value) => setActivityForm((current) => ({ ...current, company: value }))} options={companyOptions} />
-          <TextField label="Nome da atividade" value={activityForm.name} onChange={(value) => setActivityForm((current) => ({ ...current, name: value }))} />
-          <SelectField label="Etapa" value={activityForm.stage} onChange={(value) => setActivityForm((current) => ({ ...current, stage: value }))} options={STAGES.map((item) => ({ value: item, label: stageLabel(item) }))} />
-          <SelectField label="Rotina" value={activityForm.routine} onChange={(value) => setActivityForm((current) => ({ ...current, routine: value }))} options={ROUTINES.map((item) => ({ value: item, label: routineLabel(item) }))} />
-          <SelectField label="Tipo de prazo" value={activityForm.deadline_type} onChange={(value) => setActivityForm((current) => ({ ...current, deadline_type: value as 'business_days' | 'fixed_date' }))} options={[{ value: 'fixed_date', label: 'Data fixa' }, { value: 'business_days', label: 'Dias úteis a partir da base do workflow' }]} />
-          {activityForm.deadline_type === 'business_days' && <TextField label="Dias uteis" value={activityForm.deadline_days} onChange={(value) => setActivityForm((current) => ({ ...current, deadline_days: value }))} type="number" />}
-          <TextField label={activityForm.deadline_type === 'business_days' ? 'Prazo (calculado automaticamente)' : 'Prazo'} value={activityForm.expected_end_date} onChange={(value) => setActivityForm((current) => ({ ...current, expected_end_date: value }))} type="date" disabled={activityForm.deadline_type === 'business_days'} readOnly={activityForm.deadline_type === 'business_days'} />
+          <SelectField label="Empresa cadastrada" value={activityForm.company} onChange={(value) => setActivityForm((current) => ({ ...current, company: value }))} options={companyOptions} required />
+          <TextField label="Nome da atividade" value={activityForm.name} onChange={(value) => setActivityForm((current) => ({ ...current, name: value }))} required />
+          <SelectField label="Etapa" value={activityForm.stage} onChange={(value) => setActivityForm((current) => ({ ...current, stage: value }))} options={STAGES.map((item) => ({ value: item, label: stageLabel(item) }))} required />
+          <SelectField label="Rotina" value={activityForm.routine} onChange={(value) => setActivityForm((current) => ({ ...current, routine: value }))} options={ROUTINES.map((item) => ({ value: item, label: routineLabel(item) }))} required />
+          <SelectField label="Tipo de prazo" value={activityForm.deadline_type} onChange={(value) => setActivityForm((current) => ({ ...current, deadline_type: value as 'business_days' | 'fixed_date' }))} options={[{ value: 'fixed_date', label: 'Data fixa' }, { value: 'business_days', label: 'Dias úteis a partir da base do workflow' }]} required />
+          {activityForm.deadline_type === 'business_days' && <TextField label="Dias uteis" value={activityForm.deadline_days} onChange={(value) => setActivityForm((current) => ({ ...current, deadline_days: value }))} type="number" required />}
+          <TextField label={activityForm.deadline_type === 'business_days' ? 'Prazo (calculado automaticamente)' : 'Prazo'} value={activityForm.expected_end_date} onChange={(value) => setActivityForm((current) => ({ ...current, expected_end_date: value }))} type="date" disabled={activityForm.deadline_type === 'business_days'} readOnly={activityForm.deadline_type === 'business_days'} required />
           {calculatingDeadline && <p className="form-help">Calculando o prazo pela base de último dia útil definida no workflow e pelo calendário global de feriados...</p>}
           {activityForm.deadline_type === 'fixed_date' && <p className="form-help">Se a data fixa cair em fim de semana ou feriado cadastrado, escolha manualmente outra data útil.</p>}
-          <UserSelect label="Responsável" value={activityForm.responsible_user_id} users={context.users} onChange={(value) => setActivityForm((current) => ({ ...current, responsible_user_id: value }))} />
-          <UserSelect label="Suplente" value={activityForm.responsible_backup_user_id} users={context.users} onChange={(value) => setActivityForm((current) => ({ ...current, responsible_backup_user_id: value }))} allowEmpty />
+          <UserSelect label="Responsável" value={activityForm.responsible_user_id} users={context.users} onChange={(value) => setActivityForm((current) => ({ ...current, responsible_user_id: value }))} required />
+          <UserSelect label="Suplente" value={activityForm.responsible_backup_user_id} users={context.users} onChange={(value) => setActivityForm((current) => ({ ...current, responsible_backup_user_id: value }))} required />
           <CheckField label="Exige anexo" checked={activityForm.requires_attachment} onChange={(checked) => setActivityForm((current) => ({ ...current, requires_attachment: checked }))} />
           <CheckField label="Exige aprovação" checked={activityForm.requires_approval} onChange={(checked) => setActivityForm((current) => ({ ...current, requires_approval: checked }))} />
           {activityForm.requires_approval && <UserSelect label="Aprovador" value={activityForm.approver_user_id} users={context.users} onChange={(value) => setActivityForm((current) => ({ ...current, approver_user_id: value }))} allowEmpty />}
@@ -1362,7 +1398,7 @@ function ActivitiesPage({ context }: { context: AppContextShape }) {
           <CheckField label="Notificar equipe" checked={activityForm.notify_team} onChange={(checked) => setActivityForm((current) => ({ ...current, notify_team: checked }))} />
           {activityForm.notify_team && <SelectField label="Equipe" value={activityForm.team_email} onChange={(value) => setActivityForm((current) => ({ ...current, team_email: value }))} options={[{ value: '', label: 'Selecione a equipe' }, ...Array.from(new Map(context.users.filter((user) => user.team_email).map((user) => [user.team_email!, `${user.team_name || 'Equipe'} - ${user.team_email}`])).entries()).map(([value, label]) => ({ value, label }))]} />}
         </div>
-        <div className="form-footer"><p>As atividades são ordenadas automaticamente pelo prazo.</p><button className="primary-button" type="button" onClick={() => void createActivity()} disabled={!selectedWorkflow || savingActivity || calculatingDeadline || !activityForm.expected_end_date}>{savingActivity ? 'Salvando atividade...' : 'Criar nova atividade'}</button></div>
+        <div className="form-footer"><p>Os campos com * são obrigatórios. As atividades são ordenadas automaticamente pelo prazo.</p><button className="primary-button" type="button" onClick={() => void createActivity()} disabled={!selectedWorkflow || savingActivity || calculatingDeadline}>{savingActivity ? 'Salvando atividade...' : 'Criar nova atividade'}</button></div>
       </div>
 
       {pickerOpen && <Modal title="Adicionar atividades" onClose={() => setPickerOpen(false)} wide><div className="template-picker-header"><p>Selecione atividades já cadastradas para o workflow atual.</p><input placeholder="Pesquisar por nome da atividade" value={search} onChange={(event) => setSearch(event.target.value)} /></div>{formError && <p className="form-error">{formError}</p>}<div className="template-gallery">{templates.map((template) => { const checked = selectedTemplateIds.includes(template.id); return <label key={template.id} className={checked ? 'template-gallery-card selected' : 'template-gallery-card'}><input type="checkbox" checked={checked} onChange={(event) => setSelectedTemplateIds((current) => event.target.checked ? [...current, template.id] : current.filter((id) => id !== template.id))} /><strong>{template.name}</strong><span>{stageLabel(template.stage)} • {routineLabel(template.routine)}</span><small>{template.company || 'Sem empresa'}</small></label> })}</div><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setPickerOpen(false)} disabled={addingTemplates}>Voltar</button><button className="primary-button" type="button" onClick={() => void addTemplates()} disabled={selectedTemplateIds.length === 0 || addingTemplates}>{addingTemplates ? 'Adicionando...' : 'Adicionar atividades'}</button></div></Modal>}
@@ -1976,6 +2012,7 @@ function TextField({
   placeholder,
   disabled = false,
   readOnly = false,
+  required = false,
 }: {
   label: string
   value: string
@@ -1984,11 +2021,12 @@ function TextField({
   placeholder?: string
   disabled?: boolean
   readOnly?: boolean
+  required?: boolean
 }) {
   return (
     <label>
-      <span>{label}</span>
-      <input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} disabled={disabled} readOnly={readOnly} />
+      <span>{label}{required ? ' *' : ''}</span>
+      <input type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} disabled={disabled} readOnly={readOnly} required={required} />
     </label>
   )
 }
@@ -2015,16 +2053,18 @@ function SelectField({
   value,
   onChange,
   options,
+  required = false,
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   options: Array<{ value: string; label: string }>
+  required?: boolean
 }) {
   return (
     <label>
-      <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+      <span>{label}{required ? ' *' : ''}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} required={required}>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
@@ -2041,17 +2081,19 @@ function UserSelect({
   users,
   onChange,
   allowEmpty = false,
+  required = false,
 }: {
   label: string
   value: string
   users: UserOption[]
   onChange: (value: string) => void
   allowEmpty?: boolean
+  required?: boolean
 }) {
   return (
     <label>
-      <span>{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+      <span>{label}{required ? ' *' : ''}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)} required={required}>
         <option value="">{allowEmpty ? 'Não definido' : 'Selecione'}</option>
         {users.map((user) => (
           <option key={user.id} value={user.id}>
