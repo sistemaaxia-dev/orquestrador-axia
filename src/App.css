@@ -2275,8 +2275,26 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .product-brand { display: block; width: clamp(170px, 18vw, 260px); height: auto; object-fit: contain; }
 @media (max-width: 760px) { .product-brand { order: -1; align-self: flex-end; }.workspace-topbar { gap: 18px; } }
 @media (min-width: 861px) {
-  .workspace-topbar { position: relative; }
-  .product-brand { position: absolute; top: -60px; right: 0; }
+  .workspace {
+    position: relative;
+    padding-top: 104px;
+  }
+  .workspace::before {
+    position: absolute;
+    inset: 0 0 auto;
+    height: 66px;
+    border-top: 4px solid #7658e7;
+    background: linear-gradient(90deg, #170060 0%, #3f00f0 24%, #8066ff 38%, #ffffff 58%, #ffffff 100%);
+    content: '';
+  }
+  .workspace-topbar { position: static; }
+  .product-brand {
+    position: absolute;
+    z-index: 2;
+    top: 10px;
+    right: clamp(24px, 3.2vw, 52px);
+    width: clamp(210px, 18vw, 285px);
+  }
 }
 
 @media (max-width: 560px) {

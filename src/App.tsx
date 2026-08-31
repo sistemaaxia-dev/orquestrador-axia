@@ -557,7 +557,6 @@ function ProtectedLayout({ context }: { context: AppContextShape }) {
       <main className="workspace">
         <header className="workspace-topbar">
           <div>
-            <span className="topbar-kicker">AXIA · Operacao integrada</span>
             <h1>{pageTitle}</h1>
             <p>Workflows, atividades e prazos em uma visao unica.</p>
           </div>
