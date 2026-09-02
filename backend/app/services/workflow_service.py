@@ -621,6 +621,7 @@ class WorkflowService:
         if activity.get("notification_sent_at"):
             return
         self._send_activity_notification(activity, "Atividade disponivel para execucao", f"Prezado(a), a atividade '{activity['name_snapshot']}' esta disponivel para execucao.\n\nAtenciosamente,\nGestao Integ Contabil, Sist e Controles\nMensagem gerada automaticamente - nao responder.", roles=("responsible", "approver"), user=user)
+        self._send_stage_notification_for_integration(activity, user)
         try:
             self.supabase.update(
                 "workflow_activities",
@@ -644,6 +645,63 @@ class WorkflowService:
                 entity_id=activity["id"],
                 details={"error": str(error)},
             )
+
+    @staticmethod
+    def _integration_folder_name(name: Any, entity_id: Any) -> str:
+        invalid_characters = '<>:"/\\|?*'
+        clean_name = "".join("_" if character in invalid_characters else character for character in str(name or "").strip())
+        clean_name = " ".join(clean_name.split()).rstrip(".") or "Sem nome"
+        return f"{clean_name}__{entity_id}"
+
+    def _workflow_integration_metadata(self, activity: dict[str, Any]) -> dict[str, str]:
+        workflow = self.supabase.get_one("workflows", filters={"id": f"eq.{activity['workflow_id']}"}) or {}
+        workflow_data = self._legacy_workflow_to_app(workflow) if workflow else {}
+        period = ""
+        if workflow_data.get("year") and workflow_data.get("month"):
+            period = f"{int(workflow_data['year']):04d}-{int(workflow_data['month']):02d}"
+        return {
+            "workflow_id": str(activity["workflow_id"]),
+            "workflow_name": str(workflow_data.get("name") or "Workflow"),
+            "workflow_folder": self._integration_folder_name(workflow_data.get("name"), activity["workflow_id"]),
+            "activity_id": str(activity["id"]),
+            "activity_name": str(activity.get("name_snapshot") or "Atividade"),
+            "activity_folder": self._integration_folder_name(activity.get("name_snapshot"), activity["id"]),
+            "period": period,
+            "company": str(activity.get("company_snapshot") or ""),
+        }
+
+    def _send_stage_notification_for_integration(self, activity: dict[str, Any], user: CurrentUser | None) -> None:
+        email_service = EmailService()
+        if not email_service.integration_to:
+            return
+        metadata = self._workflow_integration_metadata(activity)
+        subject = f"AXIA_ORQUESTRADOR|ETAPA|WORKFLOW={metadata['workflow_id']}|ATIVIDADE={metadata['activity_id']}"
+        text = "\n".join(
+            [
+                "INTEGRACAO=AXIA_ORQUESTRADOR",
+                "TIPO=ETAPA",
+                "EVENTO=ATIVIDADE_LIBERADA",
+                "VERSAO=2",
+                f"WORKFLOW_ID={metadata['workflow_id']}",
+                f"WORKFLOW_NOME={metadata['workflow_name']}",
+                f"WORKFLOW_PASTA={metadata['workflow_folder']}",
+                f"ATIVIDADE_ID={metadata['activity_id']}",
+                f"ATIVIDADE_NOME={metadata['activity_name']}",
+                f"ATIVIDADE_PASTA={metadata['activity_folder']}",
+                f"EMPRESA={metadata['company']}",
+                f"PERIODO={metadata['period']}",
+            ]
+        )
+        try:
+            email_service.send_email(
+                to_email=email_service.integration_to,
+                subject=subject,
+                text=text,
+                use_redirect=False,
+            )
+            self.audit.log(user=user, workflow_id=activity["workflow_id"], action="workflow_activity.stage_emailed", entity_type="workflow_activity", entity_id=activity["id"], details={"to": email_service.integration_to, "subject": subject})
+        except Exception as error:
+            self.audit.log(user=user, workflow_id=activity["workflow_id"], action="email.failed", entity_type="workflow_activity", entity_id=activity["id"], details={"to": email_service.integration_to, "error": str(error)})
 
     def _recompute_activity_statuses(
         self,
@@ -1962,11 +2020,7 @@ class WorkflowService:
         content = file.read()
         if not content:
             raise WorkflowError("O arquivo enviado esta vazio.")
-        workflow = self.supabase.get_one("workflows", filters={"id": f"eq.{activity['workflow_id']}"}) or {}
-        workflow_data = self._legacy_workflow_to_app(workflow) if workflow else {}
-        period = ""
-        if workflow_data.get("year") and workflow_data.get("month"):
-            period = f"{int(workflow_data['year']):04d}-{int(workflow_data['month']):02d}"
+        metadata = self._workflow_integration_metadata(activity)
 
         def metadata_value(value: Any) -> str:
             return str(value or "").replace("\r", " ").replace("\n", " ").strip()
@@ -1982,8 +2036,9 @@ class WorkflowService:
         def id_token(value: Any) -> str:
             return re.sub(r"[^A-Za-z0-9-]", "", metadata_value(value))[:12] or "sem-id"
 
-        workflow_name = metadata_value(workflow_data.get("name"))
-        activity_name = metadata_value(activity.get("name_snapshot"))
+        workflow_name = metadata_value(metadata["workflow_name"])
+        activity_name = metadata_value(metadata["activity_name"])
+        period = metadata["period"]
         file_name = metadata_value(file.filename or "anexo.bin")
         workflow_folder = "__".join(
             [
@@ -2005,7 +2060,7 @@ class WorkflowService:
             "submission_id": str(uuid4()),
             "workflow_id": str(activity["workflow_id"]),
             "activity_id": str(activity["id"]),
-            "period": period,
+            "period": metadata["period"],
             "company": metadata_value(activity.get("company_snapshot")),
             "workflow_folder": workflow_folder,
             "activity_folder": activity_folder,
@@ -2013,14 +2068,12 @@ class WorkflowService:
         stored_file_name = f"{routing['submission_id']}__{sharepoint_segment(file_name, fallback='anexo.bin', max_length=140)}"
         routing["stored_file_name"] = stored_file_name
         routing["sharepoint_path"] = f"{workflow_folder}/{activity_folder}/{stored_file_name}"
-        subject = (
-            f"CHAVE|ENVIO={routing['submission_id']}|WORKFLOW={routing['workflow_id']}|"
-            f"ATIVIDADE={routing['activity_id']}|PERIODO={period or 'NA'}"
-        )
+        subject = f"AXIA_ORQUESTRADOR|ANEXO|WORKFLOW={routing['workflow_id']}|ATIVIDADE={routing['activity_id']}|ENVIO={routing['submission_id']}"
         text = "\n".join(
             [
-                "CHAVE=AXIOM_ATTACHMENT",
-                "VERSAO=1",
+                "INTEGRACAO=AXIA_ORQUESTRADOR",
+                "TIPO=ANEXO",
+                "VERSAO=2",
                 f"ENVIO_ID={routing['submission_id']}",
                 f"WORKFLOW_ID={routing['workflow_id']}",
                 f"WORKFLOW_NOME={workflow_name}",

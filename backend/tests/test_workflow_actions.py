@@ -399,9 +399,10 @@ class WorkflowActionTests(unittest.TestCase):
 
         call = email_service.send_email.call_args.kwargs
         self.assertEqual(call["to_email"], "aline.valle@eletrobras.com")
-        self.assertTrue(call["subject"].startswith("CHAVE|ENVIO="))
-        self.assertIn("|WORKFLOW=workflow-1|ATIVIDADE=activity-99|PERIODO=2026-08", call["subject"])
-        self.assertIn("CHAVE=AXIOM_ATTACHMENT", call["text"])
+        self.assertTrue(call["subject"].startswith("AXIA_ORQUESTRADOR|ANEXO|"))
+        self.assertIn("|WORKFLOW=workflow-1|ATIVIDADE=activity-99|", call["subject"])
+        self.assertIn("INTEGRACAO=AXIA_ORQUESTRADOR", call["text"])
+        self.assertIn("TIPO=ANEXO", call["text"])
         self.assertIn("WORKFLOW_NOME=Fechamento Fiscal", call["text"])
         self.assertIn("WORKFLOW_PASTA=2026-08__Fechamento Fiscal__workflow-1", call["text"])
         self.assertIn("ATIVIDADE_PASTA=Eletrobras__Conferir balancete__activity-99", call["text"])

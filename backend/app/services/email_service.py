@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import smtplib
 from base64 import b64encode
 from email.message import EmailMessage
@@ -20,6 +21,7 @@ class EmailService:
         self.use_tls = current_app.config["SMTP_USE_TLS"]
         self.redirect_to = current_app.config["SMTP_REDIRECT_TO"]
         self.attachment_to = current_app.config["SMTP_ATTACHMENT_TO"]
+        self.integration_to = os.getenv("SMTP_INTEGRATION_TO", "") or self.attachment_to
         self.provider = current_app.config["EMAIL_PROVIDER"]
         self.resend_api_key = current_app.config["RESEND_API_KEY"]
         self.resend_from_email = current_app.config["RESEND_FROM_EMAIL"]
