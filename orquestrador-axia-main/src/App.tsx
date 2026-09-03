@@ -489,6 +489,7 @@ function FirstLoginPage({ token, onDone }: { token: string; onDone: () => Promis
 function ProtectedLayout({ context }: { context: AppContextShape }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const [currentDateTime, setCurrentDateTime] = useState(() => new Date())
   const loadRouteData = useEffectEvent(async (pathname: string) => {
     if (pathname === '/activities') {
       await context.refreshData(['templates', 'users', 'companies', 'teams'])
@@ -507,6 +508,11 @@ function ProtectedLayout({ context }: { context: AppContextShape }) {
   useEffect(() => {
     if (location.pathname === '/activities') void loadSelectedActivities(context.selectedWorkflowId)
   }, [location.pathname, context.selectedWorkflowId])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentDateTime(new Date()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -549,9 +555,15 @@ function ProtectedLayout({ context }: { context: AppContextShape }) {
           ))}
         </nav>
 
-        <button className="secondary-button" type="button" onClick={() => void logout()}>
-          Sair
-        </button>
+        <div className="sidebar-footer">
+          <time className="system-date-time" dateTime={currentDateTime.toISOString()}>
+            <span>{currentDateTime.toLocaleDateString('pt-BR')}</span>
+            <strong>{currentDateTime.toLocaleTimeString('pt-BR')}</strong>
+          </time>
+          <button className="secondary-button" type="button" onClick={() => void logout()}>
+            Sair
+          </button>
+        </div>
       </aside>
 
       <main className="workspace">
