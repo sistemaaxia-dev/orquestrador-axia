@@ -2087,9 +2087,34 @@ body {
 }
 .nav-link.active > span:first-child { border-color: rgba(255, 255, 255, 0.2); background: rgba(255, 255, 255, 0.15); color: #fff; }
 
-.sidebar > .secondary-button {
+.sidebar-footer {
   position: relative;
   z-index: 1;
+  display: grid;
+  gap: 12px;
+  margin-top: auto;
+}
+
+.system-date-time {
+  display: grid;
+  gap: 3px;
+  padding: 12px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(250, 245, 240, 0.68);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.system-date-time strong {
+  color: #fff;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sidebar-footer > .secondary-button {
+  position: relative;
+  z-index: 1;
+  width: 100%;
   border-color: rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.06);
   color: #faf5f0;
